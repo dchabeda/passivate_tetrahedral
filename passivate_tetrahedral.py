@@ -14,7 +14,11 @@ def open_file(file):
     coords = []
     for i, line in enumerate(conf):
         line = line.split()
-        labels.append(line[0])
+        try:
+            labels.append(line[0])
+        except IndexError:
+            print("\nOne or more lines of the input file are empty. \nCoordinate input should have no empty lines (xyz not supported).") 
+            print("EXIT FAIL"); quit()
         coords.append([float(line[1]), float(line[2]), float(line[3])])
 
     atoms = []
@@ -140,29 +144,33 @@ def rot_mat2(ctr, atom1, atom2):
     
     # Errors can arise if the second atom is already in the plane because the arccos function
     # is numerically unstable near 0 and pi. If u_z is close to zero, we will rotate it by 30 degrees and proceed
-    if np.isclose(u[2],0.0):
-        #print('z-component of atom2 is close to zero: ', u, ' Rotating by 30 deg.\n')
-        theta = 30*(np.pi/180)
+    theta_p = 0 # theta prime
+    if abs(u[2]) < 1e-1:
+        theta_p = 10*(np.pi/180)
         v_x = skew_symmetric(v)
-        R_2 = np.eye(3) + np.sin(theta)*v_x + (2 * np.sin(theta/2)**2)* np.matmul(v_x,v_x)
+        R_2 = np.eye(3) + np.sin(theta_p)*v_x + (2 * np.sin(theta_p/2)**2)* np.matmul(v_x,v_x)
         u = np.matmul(R_2, u)
-        #print('new atom2: ', u*l2)
-    
+        
     # Phi is the acute angle that u makes with the altitude of v
-    phi = np.pi - angle(ctr, v, u)
+    pi_minus_phi = np.pi - angle(ctr, v, u)
     
-    a = l2*np.sin(phi) # radius of cone swept out by randomly oriented vector. Point Se-Cd2 is on this cone.
+    a = l2*np.sin(pi_minus_phi) # radius of cone swept out by randomly oriented vector. Point Se-Cd2 is on this cone.
     
-    pi_minus_phi = np.pi - phi # angle needed to calculate the standard point 2 (Se-Cd2)
-    std_point2 = [-l2*np.sin(pi_minus_phi/2), l2*np.cos(pi_minus_phi/2), 0.0] # Se-Cd2
+    phi = np.pi - pi_minus_phi # angle needed to calculate the standard point 2 (Se-Cd2)
+    std_point2 = [-l2*np.sin(phi/2), l2*np.cos(phi/2), 0.0] # Se-Cd2
     
     c = dis(u*l2,std_point2) # For law of cosines (see Tetrahedral Passivation)
     
-    theta = np.arccos(1 - (c**2)/(2*a**2)) # Angle of rotation to align with Se-Cd2. See "Tetrahedral Passivation" document
-
-    if u[2] > 0:
-        theta = 2*np.pi-theta
+    theta = np.arccos(1 - (c**2)/(2*a**2)) + theta_p # Angle of rotation to align with Se-Cd2. See "Tetrahedral Passivation" document
     
+    # The rotation is counterclockwise when looking toward the origin
+    # (clockwise looking down the bond axis from the center to the end)
+    # Theta will always be the acute (shortest distance) angle to the standard point
+    # but if the current point is above the z-axis, then the rotation matrix needs to go around
+    # the long way. So in that case, the rotation angle theta should be 2pi - theta
+    if u[2] > 0: 
+        theta = 2*np.pi-theta
+        
     v_x = skew_symmetric(v)
     
     R_2 = np.eye(3) + np.sin(theta)*v_x + (2 * np.sin(theta/2)**2)* np.matmul(v_x,v_x)
@@ -172,7 +180,6 @@ def rot_mat2(ctr, atom1, atom2):
 def rot_atoms(atoms, R):
     new_atoms = []
     for atom in atoms:
-        #print('atom in rot_atoms: ', atom)
         new_atoms.append([atom[0]] + np.matmul(R, atom[1:]).tolist())
     return new_atoms
 
@@ -186,8 +193,9 @@ def passivate(atom_list, nbonds):
     new_atoms, translation = ctr_atoms(new_atoms, 0)
     
     # Grab center atom and its two neighbors
-    ctr = new_atoms[0]
-    atom1 = new_atoms[1][1:]
+    # slice [1:] to just grab the x, y, z coordinates
+    ctr = new_atoms[0] # we will need the label later, so we leave the first entry
+    atom1 = new_atoms[1][1:] 
     atom2 = new_atoms[2][1:]
     
     R1 = rot_mat1(ctr[1:], atom1, atom2) # Construct rotation matrix to align with Se-Cd1
@@ -200,7 +208,7 @@ def passivate(atom_list, nbonds):
     tmp_atoms = rot_atoms(tmp_atoms, R2) # rotate to align with Se-Cd1
     
     # Passivate the configuration
-    tmp_atom1 = tmp_atoms[1][1:] # just for readability of the next function call
+    tmp_atom1 = tmp_atoms[1][1:] # redefinition is just for readability of the next function call
     tmp_atom2 = tmp_atoms[2][1:]
     
     if nbonds == 2:
@@ -210,6 +218,7 @@ def passivate(atom_list, nbonds):
         tmp_atoms = add_1_ligand(tmp_atoms, ctr, tmp_atom1, tmp_atom2, tmp_atom3)
     elif nbonds == 1:
         raise ValueError("Single dangling atoms...")
+    
     
     # Invert the transformations
     tmp_atoms = rot_atoms(tmp_atoms, np.transpose(R2))
@@ -354,7 +363,7 @@ def allNeighborBonds(passivated_atoms, allNeighbor, allNeighborBonds_filename):
 
 def main():
     filename = sys.argv[1]
-    filehead = filename.split('.xyz')[0]
+    filehead = filename.split('.par')[0]
     print("\nRUNNING PROGRAM \"tetrahedral.py\" ON FILE: {}".format(filename))
     atoms = open_file(filename)
     
@@ -434,6 +443,7 @@ def main():
             for idx in neigh_list[0]:
                 passivated_atoms[idx] = atoms_cpy[idx]
     
+    # print(passivated_atoms)
     #allNeighborBonds(passivated_atoms, "allNeighborBonds.dat")
     print('Writing output files...'.upper())
     write_output(filehead+"_conf", passivated_atoms, 'par')
