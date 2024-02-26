@@ -367,20 +367,29 @@ def main():
     print("\nRUNNING PROGRAM \"tetrahedral.py\" ON FILE: {}".format(filename))
     atoms = open_file(filename)
     
-    try:
-        ltype = sys.argv[2]
-    except IndexError:
-        print('No ligand type specified! Default (Cd -> P1; S -> P2) will be used.')
-        ltype = '\t\t'
-    
+    if 'lig' in sys.argv:
+        ltype = sys.argv[sys.argv.index('lig')+1]
+    else: print('No ligand type specified! Default (Cd -> P1; Se -> P2) will be used.')
+
+    if 'rem' in sys.argv:
+        rem_dangling_atoms_flag = 0
+        print('\nDangling atoms will not be removed\n')
+    else: 
+        print('\nDangling atoms will be removed by default\n')
+        rem_dangling_atoms_flag = 1
+
+  
     print("\nGetting neighbors...".upper())
     full_neighbors = get_neighbors(atoms)
     # print(full_neighbors)
     
-    print("\nRemoving dangling atoms...".upper())
-    new_atoms, full_neighbors = rem_dangling_atoms(atoms, full_neighbors)
+    if rem_dangling_atoms_flag:
+        print("\nRemoving dangling atoms...".upper())
+        new_atoms, full_neighbors = rem_dangling_atoms(atoms, full_neighbors)
+    else:
+        new_atoms = atoms
 
-    print("\nFlagging extra bonds...".upper())
+    #print("\nFlagging extra bonds...".upper())
     #flag_extra_bonds(new_atoms, full_neighbors)
     
     print("\nWRITING removedDanglingAtoms.xyz...")
