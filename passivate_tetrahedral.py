@@ -371,7 +371,7 @@ def main():
         ltype = sys.argv[sys.argv.index('lig')+1]
     else: print('No ligand type specified! Default (Cd -> P1; Se -> P2) will be used.')
 
-    if 'rem' in sys.argv:
+    if 'norem' in sys.argv:
         rem_dangling_atoms_flag = 0
         print('\nDangling atoms will not be removed\n')
     else: 
