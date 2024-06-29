@@ -1,3 +1,7 @@
+#
+# Written by Daniel Chabeda, 2023
+# UC Berkeley Chemistry, Rabani Group
+#
 import sys
 import numpy as np
 import copy
